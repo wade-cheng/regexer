@@ -23,7 +23,7 @@ impl fmt::Debug for RegexCommand {
 
 /// Regex to parse a RegexCommand from a line of text.
 static COMMAND_FROM_LINE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#""[^"]*(.*)"\s*?->\s*?"(.*)[^"]*""#).unwrap());
+    LazyLock::new(|| Regex::new(r#"[^"]*"(.*)"\s*?->\s*?"(.*)"[^"]*"#).unwrap());
 
 impl RegexCommand {
     fn new(search: String, replace: String) -> Result<Self> {
