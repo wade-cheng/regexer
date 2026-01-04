@@ -1,6 +1,7 @@
 [package]
 name = "regexer"
-version = "0.1.0"
+description = "run a series of regex commands on a source document."
+version = "0.0.0-indev"
 edition = "2024"
 
 [dependencies]

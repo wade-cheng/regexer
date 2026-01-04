@@ -33,7 +33,7 @@ impl fmt::Debug for RegexCommand {
 
 /// Regex to parse a RegexCommand from a line of text.
 static COMMAND_FROM_LINE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#""(.*)"\s*?->\s*?"(.*)""#).unwrap());
+    LazyLock::new(|| Regex::new(r#""[^"]*(.*)"\s*?->\s*?"(.*)[^"]*""#).unwrap());
 
 impl RegexCommand {
     fn new(search: String, replace: String) -> Result<Self> {
@@ -50,7 +50,7 @@ impl RegexCommand {
 
         let (_, [search, replace]) = COMMAND_FROM_LINE
             .captures(line)
-            .context("could not parse line. regex failed to find.")?
+            .context("could not parse line.")?
             .extract();
 
         // program in escape sequences
@@ -91,7 +91,9 @@ impl FromStr for RegexCommands {
         let mut commands = RegexCommands(vec![]);
 
         for (i, line) in s.replace("\r\n", "\n").split("\n").enumerate() {
-            if line.is_empty() {
+            let i = i + 1; // editors usually 1-index their rows
+
+            if line.is_empty() || line.starts_with("//") {
                 log::trace!("line {i} IGNORED");
                 continue;
             }
