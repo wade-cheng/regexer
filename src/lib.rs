@@ -1,3 +1,7 @@
+//! Core logic for the regexer binary.
+//!
+//! Figures out how to parse regex commands and run them.
+
 use std::fmt;
 use std::str::FromStr;
 use std::sync::LazyLock;
@@ -5,11 +9,42 @@ use std::sync::LazyLock;
 use anyhow::{Context, Error, Result, anyhow};
 use regex::Regex;
 
-struct RegexCommand {
+/// A single find and replace command.
+///
+/// ```
+/// use regexer::RegexCommand;
+///
+/// let c = RegexCommand::new("hi(.)".to_string(), "bye$1$1".to_string()).unwrap();
+///
+/// assert_eq!(
+///     c.transmorgify("hi!!! (I am staring at a highland cow)"),
+///     "bye!!!! (I am staring at a byegghland cow)"
+/// );
+///
+/// assert!(
+///     [
+///         RegexCommand::from_line(r#""hi(.)" -> "bye$1$1""#).unwrap(),
+///         RegexCommand::from_line(r#"comments can be left here "hi(.)" -> "bye$1$1""#).unwrap(),
+///         RegexCommand::from_line(r#""hi(.)" -> "bye$1$1" here, too   "#).unwrap(),
+///         RegexCommand::from_line(r#"   also on "hi(.)" -> "bye$1$1" both sides!  "#).unwrap(),
+///     ]
+///     .iter()
+///     .all(|other_c| *other_c == c)
+/// );
+/// ```
+pub struct RegexCommand {
     find: String,
     find_compiled: Regex,
     replace: String,
 }
+
+impl PartialEq for RegexCommand {
+    fn eq(&self, other: &Self) -> bool {
+        (&self.find, &self.replace) == (&other.find, &other.replace)
+    }
+}
+
+impl Eq for RegexCommand {}
 
 impl fmt::Debug for RegexCommand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -26,7 +61,7 @@ static COMMAND_FROM_LINE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"[^"]*"(.*)"\s*?->\s*?"(.*)"[^"]*"#).unwrap());
 
 impl RegexCommand {
-    fn new(search: String, replace: String) -> Result<Self> {
+    pub fn new(search: String, replace: String) -> Result<Self> {
         let search_compiled = Regex::new(&search)?;
         Ok(Self {
             find: search,
@@ -35,7 +70,14 @@ impl RegexCommand {
         })
     }
 
-    fn from_line(line: &str) -> Result<Self> {
+    /// Parses a [`Self`] from a line.
+    ///
+    /// Panics if `line` includes `"\n"` or `"\r\n"`.
+    ///
+    /// Expects the line to formatted like `"search" -> "replace"`. Comments can be included before or after this.
+    ///
+    /// The search is included verbatim but replace has some common escapes like `\n` and `\\`.
+    pub fn from_line(line: &str) -> Result<Self> {
         assert!(!line.contains("\n") && !line.contains("\r\n"));
 
         let (_, [search, replace]) = COMMAND_FROM_LINE
@@ -52,7 +94,7 @@ impl RegexCommand {
     }
 
     /// Transmorgify subject matter using our stored regex command.
-    fn transmorgify(&self, subject: &str) -> String {
+    pub fn transmorgify(&self, subject: &str) -> String {
         self.find_compiled
             .replace_all(subject, &self.replace)
             .to_string()
@@ -77,6 +119,9 @@ impl RegexCommands {
 impl FromStr for RegexCommands {
     type Err = Error;
 
+    /// Parse a string `s` into a series of regex commands.
+    ///
+    /// Lines starting with `//` will be ignored.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut commands = RegexCommands(vec![]);
 
